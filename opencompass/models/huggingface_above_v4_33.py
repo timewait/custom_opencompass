@@ -9,6 +9,7 @@ from opencompass.models.base_api import APITemplateParser
 from opencompass.registry import MODELS
 from opencompass.utils.logging import get_logger
 from opencompass.utils.prompt import PromptList
+from transformers import LogitsProcessor, LogitsProcessorList
 
 PromptType = Union[PromptList, str]
 
@@ -634,3 +635,50 @@ class HuggingFaceBaseModel(HuggingFacewithChatTemplate):
         m = _convert_base_messages([prompt])[0]
         t = self.tokenizer(m, add_special_tokens=add_special_tokens)
         return len(t['input_ids'])
+
+
+
+class GaussianNoiseLogitsProcessor(LogitsProcessor):
+    def __init__(self, mean=0.0, std=0.1):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, input_ids, scores):
+        # 添加高斯噪声到 logits (即 scores)
+        noise = torch.normal(mean=self.mean, std=self.std, size=scores.shape).to(scores.device)
+        return scores + noise
+
+class HuggingFaceNoiseModel(HuggingFaceBaseModel):
+    def __init__(self,
+                 path: str,
+                 model_kwargs: dict = dict(),
+                 tokenizer_path: Optional[str] = None,
+                 tokenizer_kwargs: dict = dict(),
+                 peft_path: Optional[str] = None,
+                 peft_kwargs: dict = dict(),
+                 tokenizer_only: bool = False,
+                 generation_kwargs: dict = dict(),
+                 max_seq_len: Optional[int] = None,
+                 pad_token_id: Optional[int] = None,
+                 stop_words: Optional[str] = [],
+                 **other_kwargs):
+
+        print(f"Generation kwargs: {generation_kwargs}")
+        if "noise_std" in generation_kwargs:
+            logits_processor_list = LogitsProcessorList()
+            logits_processor_list.append(GaussianNoiseLogitsProcessor(std=generation_kwargs["noise_std"]))
+            generation_kwargs["logits_processor"] = logits_processor_list
+            generation_kwargs.pop("noise_std")
+
+        super().__init__(path,
+                         model_kwargs, 
+                         tokenizer_path, 
+                         tokenizer_kwargs, 
+                         peft_path, 
+                         peft_kwargs, 
+                         tokenizer_only, 
+                         generation_kwargs, 
+                         max_seq_len, 
+                         pad_token_id, 
+                         stop_words, 
+                         **other_kwargs)
