@@ -14,7 +14,7 @@ with read_base():
 datasets = gsm8k_datasets + mmlu_datasets
 
 models = []
-for x in range(0, 30, 2):
+for x in range(0, 32):
     std = 0.1 * x
     models.append(dict(
         type=HuggingFaceNoiseModel,
