@@ -2,45 +2,21 @@ from mmengine.config import read_base
 from opencompass.models import HuggingFaceNoiseModel
 
 with read_base():
-    from opencompass.configs.datasets.inference_ppl.inference_ppl import inference_ppl_datasets
+    from opencompass.configs.datasets.gsm8k.gsm8k_gen import gsm8k_datasets
+    from opencompass.configs.datasets.mmlu.mmlu_gen import mmlu_datasets
 
-from opencompass.partitioners import NaivePartitioner
-from opencompass.runners import LocalRunner
-from opencompass.tasks import OpenICLInferTask, OpenICLEvalTask
-
-workdir = 'outputs/inference_ppl'
-datasets = [*inference_ppl_datasets]
+datasets = gsm8k_datasets + mmlu_datasets
 
 models = []
-for x in [1.0, 1,4, 2.2]:
-    std = 0.1 * x
+for x in range(0, 21):
+    std = x * 0.1
     models.append(dict(
         type=HuggingFaceNoiseModel,
-        abbr=f'llama-3-8b-Instruct-std-{std}',
+        abbr=f'llama-31-8b-Instruct-std-{std}',
         path='meta-llama/Llama-3.1-8B-Instruct',
-        max_out_len=128,
-        generation_kwargs= {"noise_std": std},
-        batch_size=32,
-        #run_cfg=dict(num_gpus=1),
+        model_kwargs = {"revision": "0e9e39f"},
+        max_out_len=1024,
+        generation_kwargs= {'noise_std': std},
+        batch_size=4,
+        run_cfg=dict(num_gpus=1),
     ))
-
-
-infer = dict(
-    partitioner=dict(type=NaivePartitioner),
-    runner=dict(
-        type=LocalRunner,
-        task=dict(type=OpenICLInferTask),
-        max_num_workers=256,  # Maximum concurrent evaluation task count
-    ),
-)
-
-
-# -------------Evaluation Stage ----------------------------------------
-eval = dict(
-    partitioner=dict(type=NaivePartitioner),
-    runner=dict(
-        type=LocalRunner,
-        task=dict(type=OpenICLEvalTask),
-        max_num_workers=256,
-    )
-)
